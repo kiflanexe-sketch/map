@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Karir Interaktif</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS universal untuk pengalaman scroll yang lebih baik di semua browser */
+        html, body {
+            overscroll-behavior: none;
+        }
+
+        body { font-family: 'Inter', sans-serif; }
+        .mindmap-area { 
+            scrollbar-width: thin; 
+            scrollbar-color: #a5b4fc #f1f5f9;
+            cursor: grab;
+        }
+        .mindmap-area::-webkit-scrollbar { width: 8px; }
+        .mindmap-area::-webkit-scrollbar-track { background: #f1f5f9; }
+        .mindmap-area::-webkit-scrollbar-thumb { background-color: #a5b4fc; border-radius: 10px; border: 2px solid #f1f5f9; }
+
+        .node {
+            cursor: pointer;
+        }
+        .node-circle {
+            stroke-width: 2px;
+            filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.1));
+        }
+        .node-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            fill: #1e293b;
+        }
+        .node-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            fill: #64748b;
+        }
+        .link {
+            fill: none;
+            stroke: #cbd5e1;
+            stroke-width: 1.5px;
+        }
+        #mindmap-svg-container {
+            width: 100%;
+            height: 100%;
+        }
+        .description-content {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-size: 0.9rem;
+            color: #475569;
+            line-height: 1.6;
+            font-family: 'Inter', sans-serif;
+        }
+        .description-content h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-top: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .description-content p, .description-content ul {
+            margin: 0;
+        }
+        .description-content ul {
+            padding-left: 1.25rem;
+            list-style-position: outside;
+        }
+        /* Chatbot Styles */
+        #chat-container {
+            transition: all 0.3s ease-in-out;
+        }
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+        .chat-message.bot .chat-bubble {
+            background-color: #f1f5f9; /* slate-100 */
+            color: #1e293b; /* slate-800 */
+        }
+        .chat-message.user .chat-bubble {
+            background-color: #4f46e5; /* indigo-600 */
+            color: white;
+        }
+        .chat-bubble {
+            max-width: 80%;
+        }
+        .thinking-bubble {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.75rem;
+        }
+        .thinking-bubble .dot {
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            background-color: #94a3b8; /* slate-400 */
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .thinking-bubble .dot:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-bubble .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        /* Mobile optimization */
+        @media (max-width: 768px) {
+            .flex-col {
+                height: auto;
+            }
+            .w-full {
+                width: 100%;
+            }
+            /* Panel kiri akan memiliki tinggi maksimal dan bisa di-scroll jika kontennya panjang */
+            .left-panel-mobile {
+                max-height: 50vh;
+                flex-shrink: 0;
+            }
+            .node-text {
+                font-size: 12px;
+            }
+            .node-label {
+                font-size: 10px;
+            }
+            #chat-container {
+                width: calc(100% - 2rem);
+                height: calc(100% - 5rem);
+                bottom: 4.5rem;
+                right: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Left Panel: Controls -->
+        <div class="w-full md:w-1/3 lg:w-1/4 bg-white p-4 md:p-6 shadow-lg overflow-y-auto left-panel-mobile">
+            <header class="text-center mb-6">
+                <h1 class="text-xl md:text-2xl font-bold text-indigo-700">Peta Karir Interaktif</h1>
+                <p class="text-slate-600 mt-1 text-sm">Pilih titik awal untuk memulai eksplorasi karirmu.</p>
+            </header>
+
+            <div class="space-y-4 md:space-y-6">
+                <div>
+                    <label for="select-subject" class="block text-sm font-medium text-gray-700 mb-2">Mulai dari Mata Pelajaran</label>
+                    <select id="select-subject" class="w-full p-2 md:p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 transition"></select>
+                </div>
+                <div>
+                    <label for="select-faculty" class="block text-sm font-medium text-gray-700 mb-2">Mulai dari Fakultas</label>
+                    <select id="select-faculty" class="w-full p-2 md:p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 transition"></select>
+                </div>
+                <div>
+                    <label for="select-profession-group" class="block text-sm font-medium text-gray-700 mb-2">Mulai dari Kelompok Profesi</label>
+                    <select id="select-profession-group" class="w-full p-2 md:p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 transition"></select>
+                </div>
+            </div>
+            <div class="mt-6 md:mt-8 space-y-3 md:space-y-4">
+                <button onclick="resetMindmap()" class="w-full p-2 md:p-3 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 transition font-semibold">
+                    Reset Peta
+                </button>
+                <button onclick="downloadMindmap(event)" class="w-full p-2 md:p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold">
+                    Download Peta (PNG)
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Mind Map -->
+        <div class="flex-1 p-4 md:p-6 bg-slate-50 relative">
+            <div id="mindmap-area" class="mindmap-area w-full h-full bg-white rounded-xl shadow-inner overflow-auto">
+                <div id="mindmap-svg-container"></div>
+                <div id="mindmap-placeholder" class="flex flex-col items-center justify-center h-full text-center text-slate-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 md:h-16 md:w-16 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <p class="mt-4 font-semibold text-base md:text-lg">Peta Karir Anda Kosong</p>
+                    <p class="mt-1 text-sm md:text-base">Pilih salah satu kategori di samping kiri untuk memulai.</p>
+                </div>
+                <!-- Tombol Reset View dengan padding lebih besar untuk target sentuh yang lebih baik -->
+                <button onclick="resetView()" title="Kembali ke Tengah" class="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-3 bg-white rounded-full shadow-md hover:bg-slate-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1v4m0 0h-4m4-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 4l-5-5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tooltip Element -->
+    <div id="tooltip" class="hidden absolute z-10 p-4 bg-white rounded-lg shadow-xl border border-slate-200 max-w-sm pointer-events-none transition-opacity duration-200">
+        <!-- Konten akan diisi oleh JavaScript -->
+    </div>
+
+    <!-- Chatbot UI -->
+    <div id="chat-container" class="hidden fixed bottom-24 right-5 md:right-8 w-[90vw] max-w-md h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col z-50 transform origin-bottom-right">
+        <div class="flex justify-between items-center p-4 bg-indigo-600 text-white rounded-t-2xl">
+            <h3 class="font-bold text-lg">Konselor Karir Gemini</h3>
+            <button id="close-chat" class="p-1 rounded-full hover:bg-indigo-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-4">
+             <!-- Pesan Bot Awal -->
+            <div class="chat-message bot flex">
+                <div class="chat-bubble p-3 rounded-lg">
+                    Halo! Saya Konselor Karir Gemini. Ada yang bisa saya bantu terkait perencanaan karir Anda?
+                </div>
+            </div>
+        </div>
+        <div class="p-4 border-t border-slate-200">
+            <form id="chat-form" class="flex items-center space-x-2">
+                <input type="text" id="chat-input" placeholder="Ketik pertanyaan Anda..." class="flex-1 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" autocomplete="off">
+                <button type="submit" class="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <button id="chat-toggle" class="fixed bottom-5 right-5 md:right-8 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition transform hover:scale-110 z-50">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+    </button>
+
+
+    <script>
+        // Data karir yang komprehensif
+        const careerDB = {
+            subjects: {
+                "Matematika": ["Analis Data", "Ahli Aktuaria", "Software Engineer", "Insinyur Sipil", "Statistikawan"],
+                "Fisika": ["Insinyur Elektro", "Astronom", "Fisikawan Medis", "Insinyur Mesin", "Insinyur Sipil", "Pilot", "Masinis"],
+                "Kimia": ["Insinyur Kimia", "Apoteker", "Ahli Forensik", "Peneliti Kimia", "Quality Control", "Insinyur Perminyakan"],
+                "Biologi": ["Dokter Umum", "Dokter Hewan", "Peneliti Biologi", "Ahli Gizi", "Bioteknolog", "Ahli Konservasi Lingkungan", "Ahli Agronomi", "Ahli Akuakultur"],
+                "Ekonomi": ["Akuntan Publik", "Analis Keuangan", "Konsultan Bisnis", "Digital Marketer", "Manajer Pemasaran"],
+                "Sosiologi": ["Peneliti Sosial", "Spesialis SDM", "Jurnalis", "Pekerja Sosial", "Diplomat"],
+                "Bahasa Inggris": ["Penerjemah", "Diplomat", "Spesialis Hubungan Internasional", "Manajer Konten", "Pilot"],
+                "Sejarah": ["Sejarawan", "Kurator Museum", "Arsiparis", "Pemandu Wisata Budaya"],
+                "Seni Budaya": ["Desainer Grafis", "Animator", "Musisi", "Aktor", "Sutradara"],
+                "Geografi": ["Ahli GIS", "Perencana Kota", "Kartografer", "Ahli Mitigasi Bencana", "Nakhoda Kapal", "Ahli Geologi"],
+                "Bahasa Indonesia": ["Jurnalis", "Pengacara", "Manajer Konten", "Penulis"],
+                "PPKn": ["Pengacara", "Diplomat", "ASN", "Analis Kebijakan Publik"],
+                "PJOK": ["Atlet Profesional", "Pelatih Olahraga"],
+                "Agama": ["Penyuluh Agama"],
+            },
+            faculties: {
+                "FMIPA": ["Matematika", "Fisika", "Kimia", "Biologi", "Statistika", "Geofisika"],
+                "Fakultas Teknik": ["Teknik Informatika", "Teknik Elektro", "Teknik Kimia", "Teknik Sipil", "Teknik Mesin", "Arsitektur", "Teknik Geodesi", "Teknik Pertambangan", "Teknik Perminyakan", "Teknik Geologi"],
+                "Fakultas Ekonomi dan Bisnis (FEB)": ["Akuntansi", "Manajemen", "Ilmu Ekonomi", "Bisnis Digital"],
+                "Fakultas Kedokteran": ["Pendidikan Dokter", "Pendidikan Dokter Gigi", "Ilmu Keperawatan", "Gizi Kesehatan", "Kebidanan"],
+                "Fakultas Farmasi": ["Farmasi"],
+                "Fakultas Kedokteran Hewan": ["Pendidikan Dokter Hewan"],
+                "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)": ["Sosiologi", "Hubungan Internasional", "Ilmu Komunikasi", "Administrasi Publik"],
+                "Fakultas Hukum": ["Ilmu Hukum"],
+                "Fakultas Ilmu Budaya (FIB)": ["Sastra Inggris", "Sastra Jepang", "Sejarah", "Arkeologi", "Sastra Indonesia"],
+                "Fakultas Psikologi": ["Psikologi"],
+                "Fakultas Seni Rupa dan Desain (FSRD)": ["Desain Komunikasi Visual (DKV)", "Seni Murni", "Desain Interior", "Film & Televisi"],
+                "Fakultas Ilmu Pendidikan (FIP)": ["Pendidikan Guru SD", "Teknologi Pendidikan", "Bimbingan dan Konseling"],
+                "Fakultas Pertanian": ["Agroteknologi", "Agribisnis", "Ilmu Tanah"],
+                "Fakultas Peternakan": ["Ilmu Peternakan"],
+                "Fakultas Perikanan dan Ilmu Kelautan": ["Budidaya Perairan", "Manajemen Sumberdaya Perairan", "Ilmu Kelautan"],
+                "Sekolah Tinggi/Politeknik Vokasi": ["Penerbangan (Pilot)", "Teknika/Nautika (Pelayaran)", "Teknik Perkeretaapian"],
+            },
+            majors: {
+                "Matematika": ["Analis Data", "Ahli Aktuaria", "Statistikawan", "Dosen"],
+                "Fisika": ["Fisikawan Medis", "Astronom", "Dosen"],
+                "Kimia": ["Peneliti Kimia", "Ahli Forensik", "Quality Control", "Dosen"],
+                "Biologi": ["Peneliti Biologi", "Ahli Konservasi Lingkungan", "Bioteknolog", "Dosen"],
+                "Statistika": ["Analis Data", "Ahli Aktuaria", "Statistikawan", "Dosen"],
+                "Geofisika": ["Ahli Mitigasi Bencana", "Ahli Geologi", "Dosen"],
+                "Teknik Informatika": ["Software Engineer", "Analis Keamanan Siber", "UI/UX Designer", "DevOps Engineer", "Dosen"],
+                "Teknik Elektro": ["Insinyur Elektro", "Dosen"],
+                "Teknik Kimia": ["Insinyur Kimia", "Bioteknolog", "Dosen"],
+                "Teknik Sipil": ["Insinyur Sipil", "Perencana Kota", "Dosen"],
+                "Teknik Mesin": ["Insinyur Mesin", "Dosen"],
+                "Arsitektur": ["Arsitek", "Dosen"],
+                "Teknik Geodesi": ["Ahli GIS", "Kartografer", "Dosen"],
+                "Teknik Pertambangan": ["Insinyur Pertambangan", "Ahli Geologi"],
+                "Teknik Perminyakan": ["Insinyur Perminyakan"],
+                "Teknik Geologi": ["Ahli Geologi"],
+                "Akuntansi": ["Akuntan Publik", "Analis Keuangan", "Auditor", "Konsultan Pajak", "Dosen"],
+                "Manajemen": ["Konsultan Bisnis", "Manajer Pemasaran", "Spesialis SDM", "Dosen"],
+                "Ilmu Ekonomi": ["Analis Keuangan", "Peneliti Sosial", "Dosen"],
+                "Bisnis Digital": ["Digital Marketer", "Manajer Konten", "Dosen"],
+                "Pendidikan Dokter": ["Dokter Umum", "Dokter Spesialis Jantung", "Dokter Spesialis Anak", "Dokter Spesialis Bedah", "Dokter Spesialis Kulit", "Fisikawan Medis", "Dosen"],
+                "Pendidikan Dokter Gigi": ["Dokter Gigi", "Dosen"],
+                "Farmasi": ["Apoteker", "Peneliti Farmasi", "Quality Control", "Dosen"],
+                "Ilmu Keperawatan": ["Perawat", "Dosen"],
+                "Gizi Kesehatan": ["Ahli Gizi", "Dosen"],
+                "Kebidanan": ["Bidan", "Dosen"],
+                "Pendidikan Dokter Hewan": ["Dokter Hewan", "Dosen"],
+                "Sosiologi": ["Peneliti Sosial", "Spesialis SDM", "Pekerja Sosial", "Dosen"],
+                "Hubungan Internasional": ["Diplomat", "Spesialis Hubungan Internasional", "Dosen"],
+                "Ilmu Komunikasi": ["Jurnalis", "Manajer Konten", "Digital Marketer", "Dosen"],
+                "Administrasi Publik": ["Analis Kebijakan Publik", "ASN", "Dosen"],
+                "Ilmu Hukum": ["Pengacara", "Jaksa", "Notaris", "Dosen"],
+                "Sastra Inggris": ["Penerjemah", "Manajer Konten", "Dosen"],
+                "Sastra Indonesia": ["Penulis", "Manajer Konten", "Jurnalis", "Dosen"],
+                "Sastra Jepang": ["Penerjemah", "Dosen"],
+                "Sejarah": ["Sejarawan", "Kurator Museum", "Arsiparis", "Dosen"],
+                "Arkeologi": ["Arkeolog", "Dosen"],
+                "Psikologi": ["Psikolog Klinis", "Spesialis SDM", "Dosen"],
+                "Desain Komunikasi Visual (DKV)": ["Desainer Grafis", "Animator", "UI/UX Designer", "Dosen"],
+                "Seni Murni": ["Seniman", "Dosen"],
+                "Desain Interior": ["Desainer Interior", "Dosen"],
+                "Film & Televisi": ["Sutradara", "Animator", "Dosen"],
+                "Pendidikan Guru SD": ["Guru", "Dosen"],
+                "Teknologi Pendidikan": ["Pengembang Kurikulum", "Dosen"],
+                "Bimbingan dan Konseling": ["Konselor", "Dosen"],
+                "Agroteknologi": ["Ahli Agronomi", "Manajer Perkebunan"],
+                "Ilmu Peternakan": ["Ahli Peternakan"],
+                "Budidaya Perairan": ["Ahli Akuakultur"],
+                "Manajemen Sumberdaya Perairan": ["Pengelola Sumber Daya Perikanan"],
+                "Penerbangan (Pilot)": ["Pilot"],
+                "Teknika/Nautika (Pelayaran)": ["Nakhoda Kapal"],
+                "Teknik Perkeretaapian": ["Masinis"],
+            },
+            professions: {
+                "Dosen": { group: "Pendidikan", path: { major: "Sesuai Bidang", faculty: "Sesuai Bidang", subject: "Sesuai Bidang" }, description: "Seorang Dosen adalah tenaga pendidik profesional di perguruan tinggi dengan tugas utama melaksanakan Tri Dharma Perguruan Tinggi, yaitu mengajar, meneliti, dan melakukan pengabdian kepada masyarakat.", peluang: { pemerintah: ["Perguruan Tinggi Negeri (PTN) di seluruh Indonesia."], swasta: ["Perguruan Tinggi Swasta (PTS) di berbagai kota."] }, "pendidikan_lanjut": "Untuk menjadi dosen, kualifikasi minimum adalah Magister (S2) yang linier dengan program studi S1. Untuk kemajuan karir ke jenjang Lektor Kepala dan Guru Besar, serta untuk mengajar program Pascascasarjana, kualifikasi Doktor (S3) sangat dianjurkan atau bahkan diwajibkan." },
+                // Kesehatan
+                "Dokter Umum": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Mendiagnosis, merawat, dan mencegah penyakit serta cedera umum pada pasien. Dokter umum adalah garda terdepan pelayanan kesehatan primer.", peluang: { pemerintah: ["Puskesmas", "Rumah Sakit Umum Daerah (RSUD)", "ASN di Kementerian Kesehatan."], swasta: ["Klinik swasta", "Rumah sakit swasta", "Dokter perusahaan."] } },
+                "Dokter Gigi": { group: "Kesehatan", path: { major: "Pendidikan Dokter Gigi", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Fokus pada kesehatan gigi, gusi, dan mulut. Melakukan tindakan pencegahan, penambalan, pencabutan, serta perawatan estetika gigi.", peluang: { pemerintah: ["Puskesmas", "RSUD", "Dinas Kesehatan."], swasta: ["Praktik mandiri", "Klinik gigi bersama", "Rumah sakit swasta."] } },
+                "Dokter Hewan": { group: "Kesehatan", path: { major: "Pendidikan Dokter Hewan", faculty: "Fakultas Kedokteran Hewan", subject: "Biologi" }, description: "Mendiagnosis, merawat, dan mencegah penyakit pada hewan, baik hewan ternak, peliharaan, maupun satwa liar.", peluang: { pemerintah: ["Dinas Peternakan", "Karantina Hewan", "Kebun Binatang."], swasta: ["Klinik hewan", "Perusahaan pakan ternak", "Peternakan besar."] } },
+                "Dokter Spesialis Jantung": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Spesialis dalam mendiagnosis dan menangani penyakit yang berkaitan dengan jantung dan pembuluh darah (kardiovaskular).", peluang: { pemerintah: ["RSUD Tipe A/B", "Rumah Sakit Jantung Nasional."], swasta: ["Rumah sakit swasta besar", "Klinik spesialis jantung."] } },
+                "Dokter Spesialis Anak": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Memberikan pelayanan kesehatan komprehensif untuk bayi, anak-anak, dan remaja, mulai dari pencegahan hingga pengobatan penyakit kompleks.", peluang: { pemerintah: ["RSUD", "Puskesmas dengan layanan spesialis."], swasta: ["Rumah sakit ibu dan anak", "Klinik spesialis anak", "Praktik mandiri."] } },
+                "Dokter Spesialis Bedah": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Melakukan prosedur operasi untuk mengobati penyakit, cedera, atau kondisi medis lainnya. Memiliki banyak subspesialis seperti bedah ortopedi, bedah plastik, dll.", peluang: { pemerintah: ["RSUD Tipe A/B/C."], swasta: ["Rumah sakit swasta besar."] } },
+                "Dokter Spesialis Kulit": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Mendiagnosis dan merawat berbagai kondisi yang mempengaruhi kulit, rambut, dan kuku, termasuk masalah estetika.", peluang: { pemerintah: ["RSUD."], swasta: ["Klinik kecantikan (estetika)", "Rumah sakit swasta", "Praktik mandiri."] } },
+                "Perawat": { group: "Kesehatan", path: { major: "Ilmu Keperawatan", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Memberikan asuhan keperawatan secara holistik kepada individu, keluarga, dan masyarakat, baik yang sakit maupun sehat.", peluang: { pemerintah: ["Puskesmas", "RSUD", "Badan Nasional Penanggulangan Bencana (BNPB)."], swasta: ["Rumah sakit swasta", "Klinik", "Perusahaan (perawat industri)", "Layanan home care."] } },
+                "Apoteker": { group: "Kesehatan", path: { major: "Farmasi", faculty: "Fakultas Farmasi", subject: "Kimia" }, description: "Ahli dalam bidang obat-obatan. Bertanggung jawab atas penyiapan, peracikan, dan distribusi obat yang aman dan efektif.", peluang: { pemerintah: ["Instalasi farmasi di RSUD/Puskesmas", "Badan Pengawas Obat dan Makanan (BPOM)."], swasta: ["Apotek ritel", "Industri farmasi (produksi, R&D, marketing)", "Rumah sakit swasta."] } },
+                "Ahli Gizi": { group: "Kesehatan", path: { major: "Gizi Kesehatan", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Merencanakan dan menerapkan program gizi untuk meningkatkan kesehatan. Memberikan konsultasi terkait pola makan, nutrisi, dan gaya hidup sehat.", peluang: { pemerintah: ["Puskesmas", "RSUD", "Dinas Kesehatan."], swasta: ["Rumah sakit swasta", "Klinik gizi", "Perusahaan makanan (R&D)", "Pusat kebugaran."] } },
+                "Bidan": { group: "Kesehatan", path: { major: "Kebidanan", faculty: "Fakultas Kedokteran", subject: "Biologi" }, description: "Memberikan asuhan dan konseling selama masa kehamilan, persalinan, dan nifas. Memimpin persalinan normal dan merawat bayi baru lahir.", peluang: { pemerintah: ["Puskesmas", "Rumah Sakit Ibu dan Anak (RSIA) pemerintah."], swasta: ["Praktik Bidan Mandiri", "Klinik bersalin", "RSIA swasta."] } },
+                "Fisikawan Medis": { group: "Kesehatan", path: { major: "Pendidikan Dokter", faculty: "Fakultas Kedokteran", subject: "Fisika" }, description: "Pakar dalam aplikasi fisika untuk keperluan medis, terutama dalam radioterapi, pencitraan diagnostik, dan proteksi radiasi.", peluang: { pemerintah: ["Departemen Radiologi atau Onkologi di RSUD/RSUP."], swasta: ["Rumah sakit swasta dengan fasilitas radioterapi canggih."] } },
+                // Teknologi
+                "Analis Data": { group: "Teknologi", path: { major: "Statistika", faculty: "FMIPA", subject: "Matematika" }, description: "Mengumpulkan, membersihkan, dan menganalisis data besar untuk menemukan wawasan, tren, dan pola guna mendukung pengambilan keputusan.", peluang: { pemerintah: ["Badan Pusat Statistik (BPS)", "Kementerian Kominfo", "Lembaga pemerintah sebagai analis kebijakan."], swasta: ["E-commerce", "Perbankan", "Telekomunikasi", "Startup teknologi."] } },
+                "Software Engineer": { group: "Teknologi", path: { major: "Teknik Informatika", faculty: "Fakultas Teknik", subject: "Matematika" }, description: "Merancang, membangun, dan memelihara perangkat lunak, mulai dari aplikasi web, mobile, hingga sistem enterprise yang kompleks.", peluang: { pemerintah: ["Pengembang sistem e-government", "Analis IT di kementerian/lembaga."], swasta: ["Perusahaan teknologi (Google, Meta, dll.)", "Startup", "Software house", "Hampir semua industri."] } },
+                "UI/UX Designer": { group: "Teknologi", path: { major: "Desain Komunikasi Visual (DKV)", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Merancang antarmuka (UI) dan pengalaman pengguna (UX) yang intuitif dan menyenangkan untuk produk digital seperti aplikasi dan website.", peluang: { pemerintah: ["Tim pengembang aplikasi layanan publik (e-government)."], swasta: ["Startup teknologi", "E-commerce", "Agensi digital", "Perusahaan software."] } },
+                "Analis Keamanan Siber": { group: "Teknologi", path: { major: "Teknik Informatika", faculty: "Fakultas Teknik", subject: "Matematika" }, description: "Melindungi sistem komputer dan jaringan dari serangan siber. Menganalisis ancaman, mengimplementasikan pertahanan, dan merespons insiden keamanan.", peluang: { pemerintah: ["Badan Siber dan Sandi Negara (BSSN)", "Tim siber di institusi militer/polisi."], swasta: ["Perbankan", "Fintech", "Perusahaan konsultan keamanan siber."] } },
+                "Insinyur Sipil": { group: "Teknologi", path: { major: "Teknik Sipil", faculty: "Fakultas Teknik", subject: "Matematika" }, description: "Merancang, membangun, dan memelihara infrastruktur publik, termasuk jalan, jembatan, bendungan, dan gedung.", peluang: { pemerintah: ["Kementerian PUPR", "Dinas Tata Kota", "BUMN Karya (Waskita, Adhi)."], swasta: ["Perusahaan konstruksi", "Konsultan perencana", "Developer properti."] } },
+                "Insinyur Elektro": { group: "Teknologi", path: { major: "Teknik Elektro", faculty: "Fakultas Teknik", subject: "Fisika" }, description: "Merancang dan mengembangkan peralatan, perangkat, dan sistem elektronik, mulai dari sirkuit mikro hingga sistem tenaga listrik skala besar.", peluang: { pemerintah: ["PLN", "Kementerian ESDM", "Lembaga Elektronika Nasional (LEN)."], swasta: ["Perusahaan telekomunikasi", "Manufaktur elektronik", "Industri otomotif."] } },
+                "Insinyur Mesin": { group: "Teknologi", path: { major: "Teknik Mesin", faculty: "Fakultas Teknik", subject: "Fisika" }, description: "Menerapkan prinsip fisika dan material untuk merancang, menganalisis, memproduksi, dan memelihara sistem mekanis.", peluang: { pemerintah: ["BUMN Manufaktur (Pindad)", "Kementerian Perindustrian."], swasta: ["Industri otomotif", "Manufaktur alat berat", "Sektor energi (oil & gas)."] } },
+                "Ahli GIS": { group: "Teknologi", path: { major: "Geografi", faculty: "FMIPA", subject: "Geografi" }, description: "Spesialis dalam Sistem Informasi Geografis (GIS) yang membuat, mengelola, menganalisis, dan memetakan semua jenis data.", peluang: { pemerintah: ["Badan Informasi Geospasial (BIG)", "LAPAN/BRIN", "Dinas Tata Ruang."], swasta: ["Perusahaan perkebunan", "Perusahaan tambang", "Logistik."] } },
+                "Arsitek": { group: "Teknologi", path: { major: "Arsitektur", faculty: "Fakultas Teknik", subject: "Matematika" }, description: "Merancang bangunan dan lingkungan binaan secara fungsional, aman, berkelanjutan, dan estetis.", peluang: { pemerintah: ["Dinas Tata Kota", "Kementerian PUPR."], swasta: ["Biro konsultan arsitektur", "Developer properti", "Arsitek independen."] } },
+                "DevOps Engineer": { group: "Teknologi", path: { major: "Teknik Informatika", faculty: "Fakultas Teknik", subject: "Matematika" }, description: "Bekerja di persimpangan antara pengembangan software (Dev) dan operasi IT (Ops) untuk mempercepat dan mengotomatisasi siklus hidup pengembangan perangkat lunak.", peluang: { pemerintah: ["Tim IT untuk layanan digital pemerintah."], swasta: ["Perusahaan teknologi", "Startup", "E-commerce."] } },
+                // Bisnis & Keuangan
+                "Akuntan Publik": { group: "Bisnis & Keuangan", path: { major: "Akuntansi", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Profesional independen yang memeriksa laporan keuangan perusahaan (auditing) dan memberikan jasa konsultasi keuangan serta perpajakan.", peluang: { pemerintah: ["Badan Pemeriksa Keuangan (BPK)", "Inspektorat Jenderal di kementerian."], swasta: ["Kantor Akuntan Publik (KAP) seperti Big Four", "Divisi audit internal di perusahaan besar."] } },
+                "Analis Keuangan": { group: "Bisnis & Keuangan", path: { major: "Akuntansi", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Menganalisis kesehatan keuangan perusahaan dan pasar untuk memberikan rekomendasi investasi, perencanaan anggaran, dan peramalan ekonomi.", peluang: { pemerintah: ["Kementerian Keuangan", "Otoritas Jasa Keuangan (OJK)", "Bank Indonesia."], swasta: ["Perusahaan sekuritas", "Bank (analis kredit, investasi)", "Manajer investasi."] } },
+                "Spesialis SDM": { group: "Bisnis & Keuangan", path: { major: "Psikologi", faculty: "Fakultas Psikologi", subject: "Sosiologi" }, description: "Mengelola sumber daya manusia di sebuah organisasi, meliputi rekrutmen, pelatihan, pengembangan karir, kompensasi, dan hubungan industrial.", peluang: { pemerintah: ["Badan Kepegawian Negara (BKN)", "Divisi SDM di BUMN dan instansi pemerintah."], swasta: ["Semua perusahaan skala menengah hingga besar di berbagai industri."] } },
+                "Konsultan Bisnis": { group: "Bisnis & Keuangan", path: { major: "Manajemen", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Memberikan saran strategis kepada perusahaan untuk meningkatkan kinerja, memecahkan masalah, dan mendorong pertumbuhan bisnis.", peluang: { pemerintah: ["Konsultan untuk BUMN atau proyek pemerintah."], swasta: ["Kantor konsultan manajemen (McKinsey, BCG, Bain)", "Freelance consultant."] } },
+                "Digital Marketer": { group: "Bisnis & Keuangan", path: { major: "Ilmu Komunikasi", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Ekonomi" }, description: "Merencanakan dan mengesekusi strategi pemasaran melalui kanal digital seperti media sosial, SEO, SEM, dan email marketing.", peluang: { pemerintah: ["Tim komunikasi publik pemerintah."], swasta: ["Agensi digital", "Startup", "E-commerce", "Hampir semua perusahaan modern."] } },
+                "Manajer Pemasaran": { group: "Bisnis & Keuangan", path: { major: "Manajemen", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Bertanggung jawab atas perencanaan, pengarahan, dan koordinasi strategi pemasaran dan kebijakan untuk mempromosikan produk atau jasa.", peluang: { pemerintah: ["Divisi pemasaran di BUMN."], swasta: ["Perusahaan FMCG", "Otomotif", "Properti", "Hampir semua industri."] } },
+                "Ahli Aktuaria": { group: "Bisnis & Keuangan", path: { major: "Statistika", faculty: "FMIPA", subject: "Matematika" }, description: "Menggunakan matematika dan statistika untuk menganalisis risiko keuangan di bidang asuransi, dana pensiun, dan program tunjangan.", peluang: { pemerintah: ["Otoritas Jasa Keuangan (OJK)", "BPJS Ketenagakerjaan/Kesehatan."], swasta: ["Perusahaan asuransi", "Konsultan aktuaria", "Manajer investasi."] } },
+                "Auditor": { group: "Bisnis & Keuangan", path: { major: "Akuntansi", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Memeriksa dan mengevaluasi keakuratan catatan keuangan suatu organisasi untuk memastikan kepatuhan terhadap hukum dan standar akuntansi.", peluang: { pemerintah: ["Badan Pemeriksa Keuangan (BPK)."], swasta: ["Kantor Akuntan Publik (KAP)", "Departemen audit internal perusahaan."] } },
+                "Konsultan Pajak": { group: "Bisnis & Keuangan", path: { major: "Akuntansi", faculty: "Fakultas Ekonomi dan Bisnis (FEB)", subject: "Ekonomi" }, description: "Membantu individu dan perusahaan dalam merencanakan, menghitung, dan melaporkan kewajiban pajak mereka sesuai dengan peraturan yang berlaku.", peluang: { pemerintah: ["Direktorat Jenderal Pajak (sebagai fiskus)."], swasta: ["Kantor konsultan pajak", "Freelance."] } },
+                // Hukum & Sosial
+                "Pengacara": { group: "Hukum & Sosial", path: { major: "Ilmu Hukum", faculty: "Fakultas Hukum", subject: "PPKn" }, description: "Memberikan nasihat hukum, mewakili klien dalam perkara perdata atau pidana, serta menyusun dokumen hukum.", peluang: { pemerintah: ["Lembaga Bantuan Hukum (LBH)", "Jaksa", "Hakim (setelah pendidikan lanjutan)."], swasta: ["Kantor hukum (law firm)", "Konsultan hukum perusahaan (in-house legal counsel)."] } },
+                "Psikolog Klinis": { group: "Hukum & Sosial", path: { major: "Psikologi", faculty: "Fakultas Psikologi", subject: "Biologi" }, description: "Mendiagnosis dan memberikan terapi untuk masalah psikologis, emsional, dan perilaku. Memerlukan pendidikan profesi setelah S1.", peluang: { pemerintah: ["Rumah Sakit Jiwa", "RSUD", "Puskesmas."], swasta: ["Biro psikologi", "Praktik mandiri", "Rumah sakit swasta."] } },
+                "Jurnalis": { group: "Hukum & Sosial", path: { major: "Ilmu Komunikasi", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Bahasa Indonesia" }, description: "Mencari, menulis, dan menyajikan berita atau informasi kepada publik melalui berbagai media seperti koran, televisi, atau portal online.", peluang: { pemerintah: ["Kantor Berita Antara", "TVRI", "RRI."], swasta: ["Media massa swasta (Kompas, Tempo, CNN Indonesia)", "Content writer di perusahaan."] } },
+                "Diplomat": { group: "Hukum & Sosial", path: { major: "Hubungan Internasional", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Bahasa Inggris" }, description: "Mewakili dan melindungi kepentingan negara serta warga negaranya di luar negeri.", peluang: { pemerintah: ["Kementerian Luar Negeri."], swasta: ["-"] } },
+                "Spesialis Hubungan Internasional": { group: "Hukum & Sosial", path: { major: "Hubungan Internasional", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Bahasa Inggris" }, description: "Analis yang bekerja di organisasi internasional atau perusahaan multinasional untuk mengelola hubungan lintas negara.", peluang: { pemerintah: ["Kementerian/Lembaga dengan kerjasama luar negeri."], swasta: ["Perusahaan multinasional", "LSM Internasional (Amnesty, Greenpeace)."] } },
+                "Pekerja Sosial": { group: "Hukum & Sosial", path: { major: "Sosiologi", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Sosiologi" }, description: "Membantu individu, keluarga, dan komunitas untuk mengatasi berbagai masalah sosial dan meningkatkan kesejahteraan mereka.", peluang: { pemerintah: ["Kementerian Sosial", "Dinas Sosial", "Panti sosial."], swasta: ["LSM bidang sosial", "Divisi CSR perusahaan."] } },
+                "Jaksa": { group: "Hukum & Sosial", path: { major: "Ilmu Hukum", faculty: "Fakultas Hukum", subject: "PPKn" }, description: "Bertindak sebagai penuntut umum dalam perkara pidana, mewakili negara untuk membuktikan kesalahan terdakwa di pengadilan.", peluang: { pemerintah: ["Kejaksaan Republik Indonesia."], swasta: ["-"] } },
+                "Notaris": { group: "Hukum & Sosial", path: { major: "Ilmu Hukum", faculty: "Fakultas Hukum", subject: "PPKn" }, description: "Pejabat umum yang berwenang membuat akta otentik mengenai semua perbuatan, perjanjian, dan ketetapan yang diharuskan oleh peraturan umum.", peluang: { pemerintah: ["- (Pejabat umum yang diangkat negara)."], swasta: ["Membuka kantor notaris sendiri."] } },
+                "Analis Kebijakan Publik": { group: "Hukum & Sosial", path: { major: "Administrasi Publik", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Sosiologi" }, description: "Menganalisis efektivitas kebijakan pemerintah yang ada dan mengusulkan solusi atau kebijakan baru untuk masalah publik.", peluang: { pemerintah: ["Staf ahli di DPR/DPRD", "Analis di kementerian/lembaga."], swasta: ["Lembaga think tank", "Konsultan kebijakan."] } },
+                "ASN": { group: "Hukum & Sosial", path: { major: "Administrasi Publik", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "PPKn" }, description: "Aparatur Sipil Negara, profesi bagi pegawai yang bekerja pada instansi pemerintah di tingkat pusat maupun daerah.", peluang: { pemerintah: ["Semua kementerian, lembaga, dan pemerintah daerah."], swasta: ["-"] } },
+                "Penyuluh Agama": { group: "Hukum & Sosial", path: { major: "Sesuai Jurusan Agama", faculty: "Fakultas Keagamaan", subject: "Agama" }, description: "Memberikan bimbingan, penyuluhan, dan konsultasi keagamaan kepada masyarakat untuk meningkatkan pemahaman dan pengamalan ajaran agama.", peluang: { pemerintah: ["Kementerian Agama (Kantor Urusan Agama)."], swasta: ["Lembaga dakwah, organisasi keagamaan."] } },
+                // Sains & Penelitian
+                "Peneliti Biologi": { group: "Sains & Penelitian", path: { major: "Biologi", faculty: "FMIPA", subject: "Biologi" }, description: "Melakukan penelitian ilmiah untuk memperluas pemahaman tentang organisme hidup dan hubungannya dengan lingkungan.", peluang: { pemerintah: ["Lembaga Ilmu Pengetahuan Indonesia (LIPI)/BRIN", "Kementerian Pertanian/Kelautan."], swasta: ["Perusahaan farmasi (R&D)", "Perusahaan agrikultur", "Lembaga konservasi (NGO)."] } },
+                "Astronom": { group: "Sains & Penelitian", path: { major: "Fisika", faculty: "FMIPA", subject: "Fisika" }, description: "Mempelajari benda-benda langit seperti bintang, planet, galaksi, dan alam semesta melalui observasi dan analisis data.", peluang: { pemerintah: ["Observatorium (Bosscha)", "Badan Riset dan Inovasi Nasional (BRIN)."], swasta: ["Lembaga pendidikan atau riset swasta."] } },
+                "Ahli Forensik": { group: "Sains & Penelitian", path: { major: "Kimia", faculty: "FMIPA", subject: "Kimia" }, description: "Menganalisis bukti fisik dari tempat kejadian perkara (TKP) untuk membantu proses penyelidikan kriminal.", peluang: { pemerintah: ["Pusat Laboratorium Forensik (Puslabfor) POLRI."], swasta: ["Perusahaan investigasi swasta (jarang di Indonesia)."] } },
+                "Statistikawan": { group: "Sains & Penelitian", path: { major: "Statistika", faculty: "FMIPA", subject: "Matematika" }, description: "Menerapkan metode statistik untuk mengumpulkan, menganalisis, dan menginterpretasikan data untuk mendukung pengambilan keputusan.", peluang: { pemerintah: ["Badan Pusat Statistik (BPS)", "Lembaga penelitian (BRIN)."], swasta: ["Perusahaan riset pasar", "Lembaga survei", "Divisi R&D."] } },
+                "Insinyur Kimia": { group: "Sains & Penelitian", path: { major: "Teknik Kimia", faculty: "Fakultas Teknik", subject: "Kimia" }, description: "Mengaplikasikan ilmu kimia, fisika, dan matematika untuk merancang dan mengoperasikan pabrik kimia industri dalam skala besar.", peluang: { pemerintah: ["BUMN Kimia (Pupuk Indonesia)", "Kementerian Perindustrian."], swasta: ["Industri petrokimia", "Pabrik semen", "Industri makanan & minuman."] } },
+                "Peneliti Kimia": { group: "Sains & Penelitian", path: { major: "Kimia", faculty: "FMIPA", subject: "Kimia" }, description: "Melakukan riset untuk mengembangkan produk atau proses kimia baru, serta menganalisis sifat dan komposisi zat.", peluang: { pemerintah: ["Lembaga riset (BRIN)."], swasta: ["Industri farmasi", "Kosmetik", "Pangan", "Manufaktur."] } },
+                "Bioteknolog": { group: "Sains & Penelitian", path: { major: "Teknik Kimia", faculty: "Fakultas Teknik", subject: "Biologi" }, description: "Memanfaatkan proses biologis dari organisme untuk mengembangkan teknologi dan produk baru di bidang kesehatan, pertanian, dan industri.", peluang: { pemerintah: ["Lembaga riset (BRIN)."], swasta: ["Perusahaan farmasi", "Industri pangan (fermentasi)", "Start-up bioteknologi."] } },
+                "Ahli Konservasi Lingkungan": { group: "Sains & Penelitian", path: { major: "Biologi", faculty: "FMIPA", subject: "Biologi" }, description: "Mengelola, melindungi, dan memperbaiki sumber daya alam dan habitat. Bekerja di lapangan untuk memonitor ekosistem.", peluang: { pemerintah: ["Kementerian Lingkungan Hidup dan Kehutanan", "Taman Nasional."], swasta: ["LSM Lingkungan (WWF, Conservation International)", "Konsultan AMDAL."] } },
+                "Quality Control": { group: "Sains & Penelitian", path: { major: "Farmasi", faculty: "Fakultas Farmasi", subject: "Kimia" }, description: "Memastikan produk memenuhi standar kualitas dan keamanan yang ditetapkan, melalui pengujian dan inspeksi di laboratorium.", peluang: { pemerintah: ["Badan Pengawas Obat dan Makanan (BPOM)."], swasta: ["Industri farmasi", "Makanan dan minuman", "Manufaktur."] } },
+                "Perencana Kota": { group: "Sains & Penelitian", path: { major: "Teknik Sipil", faculty: "Fakultas Teknik", subject: "Geografi" }, description: "Merancang tata letak dan fungsi suatu wilayah perkotaan atau pedesaan, termasuk zonasi, transportasi, dan fasilitas umum.", peluang: { pemerintah: ["Badan Perencanaan Pembangunan Daerah (Bappeda)", "Dinas Tata Ruang."], swasta: ["Konsultan perencana", "Developer properti besar."] } },
+                "Kartografer": { group: "Sains & Penelitian", path: { major: "Geografi", faculty: "FMIPA", subject: "Geografi" }, description: "Spesialis dalam pembuatan peta. Mengumpulkan, menganalisis, dan menginterpretasikan data geospasial untuk desain peta.", peluang: { pemerintah: ["Badan Informasi Geospasial (BIG)."], swasta: ["Perusahaan pemetaan digital", "Penerbit buku/atlas."] } },
+                "Ahli Mitigasi Bencana": { group: "Sains & Penelitian", path: { major: "Geografi", faculty: "FMIPA", subject: "Geografi" }, description: "Menganalisis risiko bencana di suatu wilayah dan merancang strategi untuk mengurangi dampak dan kerugiannya.", peluang: { pemerintah: ["Badan Nasional Penanggulangan Bencana (BNPB)."], swasta: ["LSM kemanusiaan", "Konsultan manajemen risiko."] } },
+                "Peneliti Sosial": { group: "Sains & Penelitian", path: { major: "Sosiologi", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Sosiologi" }, description: "Mempelajari perilaku masyarakat, struktur sosial, dan isu-isu kontemporer melalui metode penelitian kualitatif dan kuantitatif.", peluang: { pemerintah: ["Lembaga riset (BRIN)", "BPS."], swasta: ["Lembaga survei", "Perusahaan riset pasar."] } },
+                "Arkeolog": { group: "Sains & Penelitian", path: { major: "Arkeologi", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Sejarah" }, description: "Mempelajari masa lalu manusia melalui penemuan, dokumentasi, dan analisis peninggalan material dan data lingkungan.", peluang: { pemerintah: ["Pusat Penelitian Arkeologi Nasional (BRIN)."], swasta: ["Konsultan untuk proyek konstruksi di situs bersejarah."] } },
+                "Peneliti Farmasi": { group: "Sains & Penelitian", path: { major: "Farmasi", faculty: "Fakultas Farmasi", subject: "Kimia" }, description: "Melakukan riset dan pengembangan untuk menemukan obat-obatan baru, meningkatkan formulasi yang ada, dan memastikan efektivitasnya.", peluang: { pemerintah: ["Lembaga riset (BRIN)."], swasta: ["Perusahaan farmasi besar (R&D)."] } },
+                "Psikolog Industri": { group: "Sains & Penelitian", path: { major: "Psikologi", faculty: "Fakultas Psikologi", subject: "Sosiologi" }, description: "Menerapkan prinsip-prinsip psikologi untuk isu-isu di tempat kerja, seperti produktivitas, kepuasan kerja, dan seleksi karyawan.", peluang: { pemerintah: ["Asesor untuk seleksi ASN."], swasta: ["Konsultan SDM", "Divisi R&D di perusahaan besar."] } },
+                // Pendidikan
+                "Guru": { group: "Pendidikan", path: { major: "Pendidikan Guru SD/Sesuai Bidang", faculty: "Fakultas Ilmu Pendidikan (FIP)", subject: "Semua" }, description: "Mendidik dan mengajar siswa di tingkat pendidikan dasar dan menengah, serta merancang kurikulum dan evaluasi pembelajaran.", peluang: { pemerintah: ["Sekolah Negeri (SD, SMP, SMA/SMK)."], swasta: ["Sekolah swasta nasional/internasional", "Lembaga bimbingan belajar."] } },
+                "Konselor": { group: "Pendidikan", path: { major: "Bimbingan dan Konseling", faculty: "Fakultas Ilmu Pendidikan (FIP)", subject: "Sosiologi" }, description: "Memberikan bimbingan dan dukungan kepada individu, terutama siswa, untuk pengembangan pribadi, akademik, dan karir.", peluang: { pemerintah: ["Sekolah negeri (Guru BK)."], swasta: ["Sekolah swasta", "Lembaga konsultasi pendidikan."] } },
+                "Pengembang Kurikulum": { group: "Pendidikan", path: { major: "Teknologi Pendidikan", faculty: "Fakultas Ilmu Pendidikan (FIP)", subject: "Semua" }, description: "Merancang, mengembangkan, dan mengevaluasi materi dan metode pembelajaran untuk institusi pendidikan atau perusahaan.", peluang: { pemerintah: ["Kementerian Pendidikan dan Kebudayaan."], swasta: ["Perusahaan Edutech", "Penerbit buku pelajaran."] } },
+                "Penulis": { group: "Pendidikan", path: { major: "Sastra Indonesia", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Bahasa Indonesia" }, description: "Menciptakan karya tulis, baik fiksi (novel, cerpen) maupun non-fiksi (artikel, buku), untuk publikasi di berbagai media.", peluang: { pemerintah: ["Penulis naskah di lembaga pemerintah."], swasta: ["Penerbit buku", "Media massa", "Content writer", "Copywriter", "Penulis lepas."] } },
+                "Atlet Profesional": { group: "Pendidikan", path: { major: "Ilmu Keolahragaan", faculty: "Fakultas Ilmu Keolahragaan", subject: "PJOK" }, description: "Mengabdikan diri pada cabang olahraga tertentu untuk berkompetisi di tingkat regional, nasional, maupun internasional.", peluang: { pemerintah: ["Pelatnas, ASN di Kemenpora."], swasta: ["Klub olahraga profesional", "Sponsor individu."] } },
+                "Pelatih Olahraga": { group: "Pendidikan", path: { major: "Pendidikan Kepelatihan Olahraga", faculty: "Fakultas Ilmu Keolahragaan", subject: "PJOK" }, description: "Melatih individu atau tim untuk meningkatkan kemampuan dan performa dalam suatu cabang olahraga.", peluang: { pemerintah: ["Pelatih di sekolah, PPLP/PPLM."], swasta: ["Klub profesional", "Pusat kebugaran", "Pelatih pribadi."] } },
+                // Seni & Kreatif
+                "Desainer Grafis": { group: "Seni & Kreatif", path: { major: "Desain Komunikasi Visual (DKV)", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Menciptakan konsep visual untuk mengkomunikasikan ide, baik untuk media cetak maupun digital, seperti logo, brosur, dan media sosial.", peluang: { pemerintah: ["Tim komunikasi visual di kementerian/lembaga."], swasta: ["Agensi periklanan", "Branding agency", "Startup", "Freelance."] } },
+                "Animator": { group: "Seni & Kreatif", path: { major: "Desain Komunikasi Visual (DKV)", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Menciptakan gambar bergerak (animasi) untuk film, televisi, video game, dan media lainnya, baik dalam format 2D maupun 3D.", peluang: { pemerintah: ["Produksi film animasi BUMN (jarang)."], swasta: ["Studio animasi (MD Animation, The Little Giantz)", "Rumah produksi film/iklan", "Industri game."] } },
+                "Sutradara": { group: "Seni & Kreatif", path: { major: "Film & Televisi", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Bertanggung jawab atas aspek kreatif dan teknis dalam pembuatan film, acara televisi, atau pertunjukan teater.", peluang: { pemerintah: ["Sutradara program di TVRI."], swasta: ["Rumah produksi (Production House)", "Stasiun TV swasta", "Sutradara independen/freelance."] } },
+                "Penerjemah": { group: "Seni & Kreatif", path: { major: "Sastra Inggris", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Bahasa Inggris" }, description: "Mengalihbahasakan teks tertulis atau lisan dari satu bahasa ke bahasa lain dengan tetap menjaga makna dan nuansa aslinya.", peluang: { pemerintah: ["Kementerian Luar Negeri", "Sekretariat Negara."], swasta: ["Penerbit buku", "Kantor penerjemah tersumpah", "Freelance."] } },
+                "Manajer Konten": { group: "Seni & Kreatif", path: { major: "Ilmu Komunikasi", faculty: "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)", subject: "Bahasa Inggris" }, description: "Merencanakan, membuat, dan mengelola konten untuk platform digital suatu merek atau perusahaan, seperti artikel blog, video, dan media sosial.", peluang: { pemerintah: ["Tim humas/komunikasi lembaga pemerintah."], swasta: ["Media online", "Startup", "Agensi konten."] } },
+                "Sejarawan": { group: "Seni & Kreatif", path: { major: "Sejarah", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Sejarah" }, description: "Mempelajari dan menafsirkan masa lalu melalui penelitian dokumen, arsip, dan sumber sejarah lainnya.", peluang: { pemerintah: ["Pusat Sejarah TNI", "Arsip Nasional RI."], swasta: ["Penulis buku sejarah", "Konsultan film sejarah."] } },
+                "Kurator Museum": { group: "Seni & Kreatif", path: { major: "Sejarah", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Sejarah" }, description: "Mengelola koleksi artefak atau karya seni di museum, termasuk akuisisi, perawatan, dan perancangan pameran.", peluang: { pemerintah: ["Museum Nasional", "Museum-museum daerah."], swasta: ["Galeri seni swasta", "Lembaga lelang."] } },
+                "Arsiparis": { group: "Seni & Kreatif", path: { major: "Sejarah", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Sejarah" }, description: "Mengelola dan memelihara arsip dan dokumen bersejarah agar tetap awet dan dapat diakses untuk penelitian.", peluang: { pemerintah: ["Arsip Nasional Republik Indonesia (ANRI)."], swasta: ["Perusahaan besar dengan arsip sejarah penting."] } },
+                "Pemandu Wisata Budaya": { group: "Seni & Kreatif", path: { major: "Sejarah", faculty: "Fakultas Ilmu Budaya (FIB)", subject: "Sejarah" }, description: "Memandu wisatawan di lokasi-lokasi bersejarah dan budaya, serta memberikan penjelasan mendalam tentang signifikansinya.", peluang: { pemerintah: ["Pemandu di situs cagar budaya milik negara."], swasta: ["Agen perjalanan wisata", "Freelance."] } },
+                "Musisi": { group: "Seni & Kreatif", path: { major: "Seni Musik", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Menciptakan, menampilkan, atau mengaransemen musik. Bisa sebagai pemain instrumen, penyanyi, atau komposer.", peluang: { pemerintah: ["Orkestra simfoni pemerintah."], swasta: ["Musisi profesional (band/solo)", "Guru musik", "Industri rekaman."] } },
+                "Aktor": { group: "Seni & Kreatif", path: { major: "Teater", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Memerankan karakter dalam produksi film, televisi, teater, atau media lainnya.", peluang: { pemerintah: ["Teater milik negara."], swasta: ["Industri film dan sinetron", "Teater komersial", "Pengisi suara iklan."] } },
+                "Seniman": { group: "Seni & Kreatif", path: { major: "Seni Murni", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Menciptakan karya seni orisinal, seperti lukisan, patung, atau instalasi, untuk diekspresikan atau dijual.", peluang: { pemerintah: ["Pameran di galeri nasional."], swasta: ["Menjual karya melalui galeri swasta", "Komisi seni", "Residensi seniman."] } },
+                "Desainer Interior": { group: "Seni & Kreatif", path: { major: "Desain Interior", faculty: "Fakultas Seni Rupa dan Desain (FSRD)", subject: "Seni Budaya" }, description: "Merancang dan menata ruang interior agar fungsional, aman, dan estetis sesuai kebutuhan klien.", peluang: { pemerintah: ["Desainer untuk kantor pemerintahan atau fasilitas publik."], swasta: ["Biro desain interior", "Freelance", "Bekerja sama dengan developer properti."] } },
+                // Agrikultur & Kelautan
+                "Ahli Agronomi": { group: "Agrikultur & Kelautan", path: { major: "Agroteknologi", faculty: "Fakultas Pertanian", subject: "Biologi" }, description: "Seorang ahli dalam ilmu dan teknologi produksi tanaman, berfokus pada peningkatan hasil, kualitas, dan efisiensi pertanian.", peluang: { pemerintah: ["Kementerian Pertanian", "Balai Penelitian Tanaman."], swasta: ["Perusahaan perkebunan besar", "Perusahaan benih dan pupuk", "Konsultan pertanian."] } },
+                "Manajer Perkebunan": { group: "Agrikultur & Kelautan", path: { major: "Agribisnis", faculty: "Fakultas Pertanian", subject: "Ekonomi" }, description: "Mengelola seluruh aspek operasional perkebunan, mulai dari pembibitan, perawatan, panen, hingga manajemen keuangan dan SDM.", peluang: { pemerintah: ["BUMN Perkebunan (PTPN)."], swasta: ["Perusahaan perkebunan kelapa sawit, karet, kopi, dll."] } },
+                "Ahli Akuakultur": { group: "Agrikultur & Kelautan", path: { major: "Budidaya Perairan", faculty: "Fakultas Perikanan dan Ilmu Kelautan", subject: "Biologi" }, description: "Mengembangkan dan mengelola sistem budidaya organisme air seperti ikan, udang, dan rumput laut untuk tujuan komersial.", peluang: { pemerintah: ["Kementerian Kelautan dan Perikanan (KKP)."], swasta: ["Perusahaan tambak udang/ikan", "Produsen pakan ikan."] } },
+                "Pengelola Sumber Daya Perikanan": { group: "Agrikultur & Kelautan", path: { major: "Manajemen Sumberdaya Perairan", faculty: "Fakultas Perikanan dan Ilmu Kelautan", subject: "Biologi" }, description: "Menganalisis dan mengelola populasi ikan dan ekosistem perairan untuk memastikan keberlanjutan dan pemanfaatan yang optimal.", peluang: { pemerintah: ["Dinas Kelautan dan Perikanan."], swasta: ["LSM Konservasi Laut (WWF, WCS)."] } },
+                "Ahli Peternakan": { group: "Agrikultur & Kelautan", path: { major: "Ilmu Peternakan", faculty: "Fakultas Peternakan", subject: "Biologi" }, description: "Pakar dalam produksi dan manajemen ternak (sapi, ayam, kambing) untuk menghasilkan produk berkualitas seperti daging, susu, dan telur.", peluang: { pemerintah: ["Dinas Peternakan dan Kesehatan Hewan."], swasta: ["Perusahaan pakan ternak", "Perusahaan pembibitan (breeding farm)", "Wirausaha peternakan."] } },
+                // Energi & Pertambangan
+                "Insinyur Pertambangan": { group: "Energi & Pertambangan", path: { major: "Teknik Pertambangan", faculty: "Fakultas Teknik", subject: "Fisika" }, description: "Merancang, mengawasi, dan mengelola operasi penambangan mineral (batu bara, emas, nikel) secara aman, efisien, dan ramah lingkungan.", peluang: { pemerintah: ["Kementerian ESDM", "BUMN Tambang (Antam, Bukit Asam)."], swasta: ["Perusahaan tambang swasta nasional dan multinasional."] } },
+                "Insinyur Perminyakan": { group: "Energi & Pertambangan", path: { major: "Teknik Perminyakan", faculty: "Fakultas Teknik", subject: "Kimia" }, description: "Terlibat dalam seluruh siklus eksplorasi dan ekstraksi minyak dan gas bumi, dari pengeboran hingga produksi.", peluang: { pemerintah: ["SKK Migas", "BUMN Migas (Pertamina)."], swasta: ["Perusahaan migas internasional (Exxon, Chevron)", "Perusahaan jasa migas (Schlumberger)."] } },
+                "Ahli Geologi": { group: "Energi & Pertambangan", path: { major: "Teknik Geologi", faculty: "Fakultas Teknik", subject: "Geografi" }, description: "Mempelajari komposisi, struktur, dan proses bumi untuk menemukan sumber daya alam seperti mineral, migas, dan air tanah.", peluang: { pemerintah: ["Badan Geologi", "Kementerian ESDM."], swasta: ["Perusahaan tambang dan migas", "Perusahaan konstruksi (analisis tanah)."] } },
+                // Transportasi & Logistik
+                "Pilot": { group: "Transportasi & Logistik", path: { major: "Penerbangan (Pilot)", faculty: "Sekolah Tinggi/Politeknik Vokasi", subject: "Fisika" }, description: "Menerbangkan dan menavigasi pesawat terbang untuk mengangkut penumpang atau kargo dengan aman sesuai jadwal.", peluang: { pemerintah: ["Maskapai BUMN (Garuda Indonesia)."], swasta: ["Maskapai penerbangan swasta (Lion Air, Batik Air)", "Penerbangan charter/kargo."] }, "pendidikan_lanjut": "Memerlukan pendidikan khusus di sekolah penerbangan dan lisensi terbang (CPL, ATPL) yang dikeluarkan oleh otoritas penerbangan." },
+                "Nakhoda Kapal": { group: "Transportasi & Logistik", path: { major: "Teknika/Nautika (Pelayaran)", faculty: "Sekolah Tinggi/Politeknik Vokasi", subject: "Geografi" }, description: "Pemimpin tertinggi di atas kapal, bertanggung jawab penuh atas keselamatan pelayaran, kru, penumpang, dan muatan kapal.", peluang: { pemerintah: ["BUMN Pelayaran (Pelni, ASDP)."], swasta: ["Perusahaan pelayaran kargo", "Kapal pesiar", "Industri perikanan lepas pantai."] }, "pendidikan_lanjut": "Wajib menempuh pendidikan di akademi/politeknik pelayaran dan memiliki sertifikat keahlian pelaut (ANT/ATT)." },
+                "Masinis": { group: "Transportasi & Logistik", path: { major: "Teknik Perkeretaapian", faculty: "Sekolah Tinggi/Politeknik Vokasi", subject: "Fisika" }, description: "Mengoperasikan lokomotif kereta api untuk menarik rangkaian gerbong penumpang atau barang sesuai dengan peraturan dan jadwal.", peluang: { pemerintah: ["PT Kereta Api Indonesia (KAI) dan anak perusahaannya (KCI, KAI Logistik)."], swasta: ["- (di Indonesia saat ini hanya ada satu operator utama)."] }, "pendidikan_lanjut": "Memerlukan pelatihan dan sertifikasi khusus yang diselenggarakan oleh operator perkeretaapian." },
+            },
+            professionGroups: ["Kesehatan", "Teknologi", "Bisnis & Keuangan", "Hukum & Sosial", "Sains & Penelitian", "Pendidikan", "Seni & Kreatif", "Agrikultur & Kelautan", "Energi & Pertambangan", "Transportasi & Logistik"],
+            
+            majorDetails: {
+                "Teknik Informatika": {
+                    description: "Jurusan yang mempelajari prinsip-prinsip ilmu komputer dan analisis matematis untuk perancangan, pengujian, pengembangan, dan evaluasi perangkat lunak serta sistem operasi.",
+                    universities: {
+                        negeri: ["Institut Teknologi Bandung (ITB) - Bandung", "Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Institut Teknologi Sepuluh Nopember (ITS) - Surabaya"],
+                        swasta: ["Bina Nusantara University (BINUS) - Jakarta", "Telkom University - Bandung"]
+                    },
+                    info: "Akreditasi di universitas ternama umumnya 'Unggul'. Biaya kuliah (UKT) PTN berkisar dari Rp 500rb - Rp 20jt+ per semester."
+                },
+                "Akuntansi": {
+                    description: "Program studi yang fokus pada pengukuran, penjabaran, dan pemberian kepastian mengenai informasi keuangan yang akan membantu pengambilan keputusan.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Airlangga (UNAIR) - Surabaya", "Universitas Diponegoro (UNDIP) - Semarang"],
+                        swasta: ["Universitas Katolik Indonesia Atma Jaya - Jakarta", "Universitas Trisakti - Jakarta"]
+                    },
+                    info: "Akreditasi di universitas ternama umumnya 'Unggul'. Lulusan memiliki sertifikasi profesi seperti CA (Chartered Accountant)."
+                },
+                "Pendidikan Dokter": {
+                    description: "Program pendidikan untuk menghasilkan dokter yang kompeten dalam diagnosis, pengobatan, dan pencegahan penyakit, serta memiliki etika profesi yang tinggi.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Jakarta", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Airlangga (UNAIR) - Surabaya", "Universitas Padjadjaran (UNPAD) - Bandung"],
+                        swasta: ["Universitas Pelita Harapan (UPH) - Tangerang", "Universitas Katolik Indonesia Atma Jaya - Jakarta"]
+                    },
+                    info: "Persaingan masuk sangat ketat. Biaya pendidikan cenderung tinggi, terutama di jalur mandiri dan universitas swasta."
+                },
+                "Ilmu Komunikasi": {
+                    description: "Mempelajari semua aspek komunikasi, mulai dari interpersonal, komunikasi massa, hingga komunikasi strategis seperti PR dan periklanan.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Padjadjaran (UNPAD) - Bandung"],
+                        swasta: ["London School of Public Relations (LSPR) - Jakarta", "Universitas Katolik Indonesia Atma Jaya - Jakarta"]
+                    },
+                    info: "Jurusan yang dinamis dengan banyak pilihan konsentrasi, seperti Jurnalistik, Public Relations, dan Broadcasting."
+                },
+                "Psikologi": {
+                    description: "Ilmu yang mempelajari perilaku dan proses mental manusia. Lulusan dapat berkarir di bidang klinis, industri (HRD), atau pendidikan.",
+                     universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Padjadjaran (UNPAD) - Bandung"],
+                        swasta: ["Universitas Gunadarma - Depok", "Universitas Katolik Indonesia Atma Jaya - Jakarta"]
+                    },
+                    info: "Untuk menjadi psikolog, diperlukan pendidikan lanjut ke jenjang S2 Profesi Psikologi."
+                },
+                "Ilmu Hukum": {
+                    description: "Mempelajari sistem hukum yang berlaku, termasuk hukum pidana, perdata, tata negara, dan internasional.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Airlangga (UNAIR) - Surabaya"],
+                        swasta: ["Universitas Pelita Harapan (UPH) - Tangerang", "Universitas Trisakti - Jakarta"]
+                    },
+                    info: "Setelah lulus, perlu mengambil Pendidikan Khusus Profesi Advokat (PKPA) untuk menjadi pengacara."
+                },
+                "Agroteknologi": {
+                    description: "Jurusan yang menggabungkan ilmu pertanian dengan teknologi modern untuk menciptakan solusi inovatif dalam budidaya tanaman dan pengelolaan lahan.",
+                    universities: {
+                        negeri: ["Institut Pertanian Bogor (IPB) - Bogor", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Brawijaya (UB) - Malang"],
+                        swasta: ["Universitas Muhammadiyah Yogyakarta (UMY) - Yogyakarta"]
+                    },
+                    info: "Prospek karir sangat luas seiring dengan meningkatnya kebutuhan pangan nasional."
+                },
+                "Teknik Pertambangan": {
+                    description: "Jurusan yang mempelajari proses penambangan sumber daya mineral, mulai dari eksplorasi, eksploitasi, hingga pengolahan dan reklamasi pasca-tambang.",
+                    universities: {
+                        negeri: ["Institut Teknologi Bandung (ITB) - Bandung", "Universitas Gadjah Mada (UGM) - Yogyakarta"],
+                        swasta: ["Universitas Trisakti - Jakarta"]
+                    },
+                    info: "Karir di bidang ini menawarkan tantangan tinggi dengan kompensasi yang kompetitif."
+                },
+                "Penerbangan (Pilot)": {
+                    description: "Program pendidikan vokasi khusus untuk menjadi penerbang (pilot) profesional, mencakup teori, simulator, dan praktik terbang.",
+                    universities: {
+                        negeri: ["Sekolah Tinggi Penerbangan Indonesia (STPI) - Curug"],
+                        swasta: ["Bali International Flight Academy (BIFA) - Bali", "Nusa Flying International - Jakarta"]
+                    },
+                    info: "Membutuhkan biaya yang sangat besar dan kondisi fisik serta psikologis yang prima."
+                }
+            },
+            facultyDetails: {
+                 "Fakultas Teknik": {
+                    description: "Fakultas yang menaungi berbagai program studi keteknikan (rekayasa) yang menerapkan ilmu pengetahuan dan teknologi untuk merancang, membangun, dan memelihara struktur, mesin, hingga sistem.",
+                    universities: {
+                        negeri: ["Institut Teknologi Bandung (ITB) - Bandung", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Institut Teknologi Sepuluh Nopember (ITS) - Surabaya"],
+                        swasta: ["Telkom University - Bandung", "Bina Nusantara University (BINUS) - Jakarta"]
+                    },
+                    info: "Dikenal dengan budaya akademik yang kuat dan lulusan yang banyak dicari di berbagai industri."
+                 },
+                 "Fakultas Ekonomi dan Bisnis (FEB)": {
+                    description: "Fakultas yang berfokus pada studi ilmu ekonomi, manajemen, akuntansi, dan bisnis. Mempersiapkan mahasiswa untuk berkarir di sektor korporat, keuangan, dan pemerintahan.",
+                    universities: {
+                        negeri: ["Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Indonesia (UI) - Depok", "Universitas Airlangga (UNAIR) - Surabaya"],
+                        swasta: ["Prasetiya Mulya University - Tangerang", "Universitas Katolik Indonesia Atma Jaya - Jakarta"]
+                    },
+                    info: "Memiliki jaringan alumni yang luas dan kuat di dunia bisnis dan pemerintahan."
+                 },
+                 "Fakultas Kedokteran": {
+                    description: "Fakultas yang menyelenggarakan pendidikan tinggi di bidang kedokteran, kedokteran gigi, farmasi, dan ilmu kesehatan lainnya.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Jakarta", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Airlangga (UNAIR) - Surabaya"],
+                        swasta: ["Universitas Pelita Harapan (UPH) - Tangerang", "Universitas Yarsi - Jakarta"]
+                    },
+                    info: "Merupakan salah satu fakultas dengan tingkat persaingan tertinggi di Indonesia."
+                 },
+                 "Fakultas Farmasi": {
+                    description: "Fakultas yang secara khusus mendalami ilmu tentang obat-obatan, mulai dari penemuan, pengembangan, produksi, hingga distribusi dan penggunaannya yang aman.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Institut Teknologi Bandung (ITB) - Bandung", "Universitas Gadjah Mada (UGM) - Yogyakarta"],
+                        swasta: ["Universitas Sanata Dharma - Yogyakarta"]
+                    },
+                    info: "Banyak universitas terkemuka memiliki Fakultas Farmasi yang terpisah dari Fakultas Kedokteran."
+                 },
+                 "FMIPA": {
+                    description: "Fakultas Matematika dan Ilmu Pengetahuan Alam (FMIPA) adalah pusat studi ilmu-ilmu dasar seperti Matematika, Fisika, Kimia, dan Biologi.",
+                    universities: {
+                        negeri: ["Institut Teknologi Bandung (ITB) - Bandung", "Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta"],
+                        swasta: ["-"]
+                    },
+                    info: "Lulusannya banyak berkarir sebagai peneliti, akademisi, dan analis di berbagai bidang."
+                 },
+                 "Fakultas Ilmu Sosial dan Ilmu Politik (FISIP)": {
+                    description: "Mempelajari aspek-aspek sosial dan politik masyarakat, termasuk sosiologi, ilmu komunikasi, dan hubungan internasional.",
+                    universities: {
+                        negeri: ["Universitas Indonesia (UI) - Depok", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Padjadjaran (UNPAD) - Bandung"],
+                        swasta: ["Universitas Paramadina - Jakarta", "Universitas Pelita Harapan (UPH) - Tangerang"]
+                    },
+                    info: "Lulusan FISIP memiliki prospek karir yang luas di media, pemerintahan, dan LSM."
+                 },
+                 "Fakultas Pertanian": {
+                    description: "Fakultas yang fokus pada pengembangan ilmu dan teknologi untuk mengelola sumber daya hayati secara berkelanjutan guna memenuhi kebutuhan pangan dan industri.",
+                    universities: {
+                        negeri: ["Institut Pertanian Bogor (IPB) - Bogor", "Universitas Gadjah Mada (UGM) - Yogyakarta", "Universitas Brawijaya (UB) - Malang"],
+                        swasta: ["Universitas Kristen Satya Wacana (UKSW) - Salatiga"]
+                    },
+                    info: "Sangat relevan dengan kondisi Indonesia sebagai negara agraris."
+                 },
+                 "Fakultas Peternakan": {
+                    description: "Mempelajari semua aspek yang berkaitan dengan ternak, mulai dari pembibitan, nutrisi, teknologi hasil ternak, hingga manajemen bisnis peternakan.",
+                    universities: {
+                        negeri: ["Universitas Gadjah Mada (UGM) - Yogyakarta", "Institut Pertanian Bogor (IPB) - Bogor", "Universitas Padjadjaran (UNPAD) - Bandung"],
+                        swasta: ["Universitas Muhammadiyah Malang (UMM) - Malang"]
+                    },
+                    info: "Menyiapkan tenaga ahli untuk mendukung ketahanan pangan nasional dari sektor hewani."
+                 },
+                 "Fakultas Perikanan dan Ilmu Kelautan": {
+                    description: "Fokus pada pengelolaan dan pemanfaatan sumber daya perairan (laut, payau, tawar) secara lestari, mencakup budidaya, penangkapan, dan pengolahan.",
+                    universities: {
+                        negeri: ["Institut Pertanian Bogor (IPB) - Bogor", "Universitas Diponegoro (UNDIP) - Semarang", "Universitas Brawijaya (UB) - Malang"],
+                        swasta: ["Universitas Pancasakti Tegal - Tegal"]
+                    },
+                    info: "Sangat strategis bagi Indonesia sebagai negara maritim terbesar di dunia."
+                 }
+            },
+            subjectDetails: {
+                "Matematika": {
+                    description: "Ilmu tentang logika, besaran, struktur, ruang, dan perubahan. Melatih kemampuan berpikir logis, analitis, dan pemecahan masalah.",
+                    relevance: {
+                        "Software Engineer": "Dasar dari logika pemrograman, algoritma, dan kriptografi. Penting untuk merancang solusi software yang efisien.",
+                        "Analis Data": "Fondasi dari statistika dan model prediktif. Dibutuhkan untuk memahami algoritma machine learning dan menginterpretasi data.",
+                        "Insinyur Sipil": "Digunakan untuk perhitungan struktur, kekuatan material, dan analisis desain infrastruktur agar aman dan efisien."
+                    }
+                },
+                "Fisika": {
+                    description: "Ilmu yang mempelajari gejala alam, sifat materi, energi, dan interaksinya. Membahas konsep dari skala atom hingga alam semesta.",
+                    relevance: {
+                        "Insinyur Elektro": "Inti dari pemahaman tentang sirkuit listrik, elektromagnetisme, dan semikonduktor yang menjadi dasar rekayasa elektro.",
+                        "Insinyur Mesin": "Prinsip mekanika, termodinamika, dan fluida adalah fondasi untuk merancang mesin dan sistem konversi energi.",
+                        "Pilot": "Dasar pemahaman aerodinamika, navigasi, dan cara kerja instrumen pesawat.",
+                        "Insinyur Pertambangan": "Penting untuk memahami mekanika batuan, geofisika, dan proses pemisahan material."
+                    }
+                },
+                "Biologi": {
+                    description: "Ilmu yang mempelajari tentang kehidupan dan organisme hidup, termasuk struktur, fungsi, pertumbuhan, dan evolusinya.",
+                    relevance: {
+                        "Dokter Umum": "Memberikan pemahaman fundamental tentang anatomi, fisiologi, dan patologi tubuh manusia yang esensial untuk mendiagnosis penyakit.",
+                        "Bioteknolog": "Dasar untuk memahami proses seluler dan molekuler yang dimanipulasi dalam rekayasa genetika dan pengembangan produk biotek.",
+                        "Ahli Agronomi": "Penting untuk memahami fisiologi tumbuhan, genetika tanaman, dan interaksi tanaman dengan lingkungannya."
+                    }
+                },
+                "Kimia": {
+                    description: "Ilmu yang mempelajari tentang komposisi, struktur, sifat, dan perubahan materi.",
+                    relevance: {
+                        "Apoteker": "Fundamental untuk memahami struktur molekul obat, interaksinya dengan tubuh, dan proses formulasinya.",
+                        "Insinyur Kimia": "Dasar untuk merancang dan mengoperasikan proses industri yang mengubah bahan mentah menjadi produk bernilai.",
+                        "Insinyur Perminyakan": "Penting dalam memahami sifat fluida reservoir, komposisi hidrokarbon, dan proses pengilangan."
+                    }
+                },
+                "Ekonomi": {
+                    description: "Mempelajari bagaimana individu, bisnis, dan pemerintah membuat pilihan tentang alokasi sumber daya yang langka.",
+                    relevance: {
+                        "Analis Keuangan": "Memberikan kerangka untuk memahami pasar, valuasi aset, risiko, dan membuat keputusan investasi yang tepat.",
+                        "Konsultan Bisnis": "Dasar untuk menganalisis pasar, strategi penetapan harga, dan efisiensi operasional perusahaan.",
+                        "Manajer Perkebunan": "Membantu dalam perencanaan anggaran, analisis biaya, dan strategi pemasaran hasil perkebunan."
+                    }
+                },
+                 "Bahasa Inggris": {
+                    description: "Mempelajari tata bahasa, kosakata, dan kemampuan berkomunikasi lisan maupun tulisan dalam Bahasa Inggris, serta memahami budayanya.",
+                    relevance: {
+                        "Penerjemah": "Merupakan keahlian inti dan fundamental untuk dapat mengalihbahasakan makna dan nuansa secara akurat.",
+                        "Diplomat": "Bahasa universal dalam diplomasi internasional, esensial untuk negosiasi dan representasi negara.",
+                        "Spesialis Hubungan Internasional": "Alat kerja utama untuk menganalisis dokumen internasional, berkomunikasi dengan mitra asing, dan bekerja di organisasi global.",
+                        "Manajer Konten": "Penting untuk menjangkau audiens global, mengelola konten multibahasa, dan mengikuti tren internasional.",
+                        "Pilot": "Bahasa standar komunikasi penerbangan internasional (aviasi) yang wajib dikuasai untuk keselamatan dan koordinasi."
+                    }
+                },
+                "Sosiologi": {
+                    description: "Ilmu yang mempelajari perilaku sosial, struktur, dan dinamika masyarakat.",
+                    relevance: {
+                        "Spesialis SDM": "Membantu memahami dinamika kelompok, budaya organisasi, dan faktor sosial di tempat kerja untuk mengelola SDM secara efektif.",
+                        "Jurnalis": "Memberikan lensa untuk menganalisis isu-isu sosial, memahami konteks berita, dan melaporkan secara mendalam."
+                    }
+                },
+                "Bahasa Indonesia": {
+                    description: "Mempelajari tata bahasa, sastra, dan kemampuan berkomunikasi secara efektif dan terstruktur dalam Bahasa Indonesia.",
+                    relevance: {
+                        "Jurnalis": "Keterampilan esensial untuk menulis berita yang jelas, akurat, dan mudah dipahami oleh publik.",
+                        "Pengacara": "Penting untuk menyusun dokumen hukum, argumen, dan berkomunikasi secara persuasif di pengadilan."
+                    }
+                },
+                "PPKn": {
+                    description: "Pendidikan Pancasila dan Kewarganegaraan, mempelajari tentang ideologi negara, konstitusi, sistem pemerintahan, serta hak dan kewajiban warga negara.",
+                    relevance: {
+                        "Pengacara": "Memberikan dasar pemahaman tentang sistem hukum dan ketatanegaraan Indonesia.",
+                        "ASN": "Fondasi untuk memahami tugas dan fungsi sebagai abdi negara yang berlandaskan Pancasila dan UUD 1945."
+                    }
+                },
+                "PJOK": {
+                    description: "Pendidikan Jasmani, Olahraga, dan Kesehatan, fokus pada pengembangan fisik, keterampilan motorik, strategi olahraga, dan pemahaman kesehatan tubuh.",
+                    relevance: {
+                        "Atlet Profesional": "Dasar dari semua pemahaman tentang gerak, kebugaran, dan teknik dasar cabang olahraga.",
+                        "Pelatih Olahraga": "Memberikan pengetahuan tentang anatomi, fisiologi, dan metodologi latihan untuk mengembangkan atlet."
+                    }
+                },
+                "Agama": {
+                    description: "Mempelajari ajaran, sejarah, dan nilai-nilai yang terkandung dalam suatu agama.",
+                    relevance: {
+                        "Penyuluh Agama": "Merupakan pengetahuan inti dan fundamental untuk dapat memberikan bimbingan dan pencerahan kepada masyarakat."
+                    }
+                },
+                "Geografi": {
+                    description: "Ilmu yang mempelajari tentang lokasi serta persamaan dan perbedaan keruangan atas fenomena fisik dan manusia di atas permukaan bumi.",
+                    relevance: {
+                        "Ahli Geologi": "Dasar untuk memahami struktur bumi, formasi batuan, dan proses-proses geologis.",
+                        "Nakhoda Kapal": "Penting untuk navigasi, memahami pola cuaca, arus laut, dan pemetaan."
+                    }
+                }
+            }
+        };
+        
+        let currentStartPoint = null;
+        let root = null;
+        let svg, g;
+        let i = 0;
+        const duration = 250;
+
+        const mindmapArea = document.getElementById('mindmap-area');
+        const svgContainer = document.getElementById('mindmap-svg-container');
+        const placeholder = document.getElementById('mindmap-placeholder');
+        const allSelects = document.querySelectorAll('select');
+        let zoomBehavior;
+        
+        function init() {
+            populateSelect('select-subject', Object.keys(careerDB.subjects));
+            populateSelect('select-faculty', Object.keys(careerDB.faculties));
+            populateSelect('select-profession-group', careerDB.professionGroups);
+
+            document.getElementById('select-subject').addEventListener('change', (e) => startMindmap('subject', e.target.value));
+            document.getElementById('select-faculty').addEventListener('change', (e) => startMindmap('faculty', e.target.value));
+            document.getElementById('select-profession-group').addEventListener('change', (e) => startMindmap('professionGroup', e.target.value));
+            
+            // Initialize Chatbot
+            initChatbot();
+        }
+
+        function populateSelect(id, options) {
+            const select = document.getElementById(id);
+            const placeholderText = select.previousElementSibling.textContent.replace('Mulai dari ', 'Pilih ');
+            select.innerHTML = `<option value="">-- ${placeholderText} --</option>`;
+            options.sort().forEach(opt => {
+                select.innerHTML += `<option value="${opt}">${opt}</option>`;
+            });
+        }
+        
+        function resetMindmap() {
+            svgContainer.innerHTML = '';
+            placeholder.style.display = 'flex';
+            allSelects.forEach(s => s.value = '');
+            currentStartPoint = null;
+            root = null;
+            svg = null;
+            g = null;
+        }
+
+        function resetView() {
+            if (!svg || !zoomBehavior) return; // Pastikan mind map sudah diinisialisasi
+            const initialTransform = d3.zoomIdentity.translate(300, 4000);
+            svg.transition().duration(750).call(zoomBehavior.transform, initialTransform);
+        }
+
+        function startMindmap(type, value) {
+            if (!value) {
+                resetMindmap();
+                return;
+            }
+            currentStartPoint = type; 
+            allSelects.forEach(s => { if (s.id !== `select-${type.replace('Group','-group')}`) s.value = ''; });
+            
+            const labels = { subject: 'Mata Pelajaran', faculty: 'Fakultas', professionGroup: 'Kelompok Profesi'};
+
+            const rootData = {
+                id: `root-${Date.now()}`,
+                name: value,
+                label: labels[type],
+                type: type,
+                x0: 0,
+                y0: 0,
+            };
+            rootData.children = getChildrenForNode(rootData);
+
+            root = d3.hierarchy(rootData);
+            root.x0 = 0;
+            root.y0 = 0;
+            
+            update(root);
+        }
+
+        function handleNodeClick(event, d) {
+            if (d.data.type === 'path') return;
+
+            if (d.children) { 
+                d.data._children = d.children.map(c => c.data); 
+                delete d.data.children;
+            } else {
+                d.data.children = d.data._children || getChildrenForNode(d.data);
+                delete d.data._children;
+            }
+            update(d);
+        }
+        
+        function getChildrenForNode(nodeData) {
+            const { type, name, id } = nodeData;
+            let children = [];
+            
+            if (type === 'profession') {
+                const isDosen = name.startsWith("Dosen");
+                const professionKey = isDosen ? "Dosen" : name;
+                const professionData = careerDB.professions[professionKey];
+                
+                if (!professionData) {
+                    console.error(`Data not found for profession: ${name}`);
+                    return null;
+                }
+                
+                if (currentStartPoint === 'subject' || currentStartPoint === 'professionGroup') {
+                    const path = professionData?.path;
+                    if (path) {
+                        if (path.major && path.faculty && path.major !== "Sesuai Bidang") {
+                            children.push({
+                                name: `Jurusan ${path.major}, ${path.faculty}`,
+                                label: 'Rekomendasi Pendidikan',
+                                type: 'path',
+                                majorName: path.major,
+                                facultyName: path.faculty,
+                                id: `${id}-path-majorfaculty`
+                            });
+                        }
+                        if (path.subject && path.subject !== "Sesuai Bidang" && path.subject !== "Semua") {
+                            children.push({ 
+                                name: path.subject, 
+                                label: 'Mata Pelajaran Kunci', 
+                                type: 'path',
+                                id: `${id}-path-subject`
+                            });
+                        }
+                    }
+                }
+            } else if (type === 'major') {
+                  children = (careerDB.majors[name] || []).map(p => {
+                      const profValue = p === "Dosen" ? `Dosen ${name}` : p;
+                      return { id: `${id}-${profValue}`, name: profValue, label: 'Peluang Profesi', type: 'profession' }
+                  });
+            } else if (type === 'subject') {
+                  children = (careerDB.subjects[name] || []).map(p => ({ id: `${id}-${p}`, name: p, label: 'Peluang Profesi', type: 'profession' }));
+            } else if (type === 'faculty') {
+                  children = (careerDB.faculties[name] || []).map(m => ({ id: `${id}-${m}`, name: m, label: 'Jurusan', type: 'major' }));
+            } else if (type === 'professionGroup') {
+                  const professionsInGroup = Object.keys(careerDB.professions).filter(p => careerDB.professions[p].group === name);
+                  children = professionsInGroup.map(p => ({ id: `${id}-${p}`, name: p, label: 'Profesi Spesifik', type: 'profession' }));
+            }
+            return children.length > 0 ? children : null;
+        }
+
+        function update(source) {
+            placeholder.style.display = 'none';
+            
+            const hierarchy = d3.hierarchy(root.data, d => d.children);
+            
+            if (!svg) {
+                svg = d3.select("#mindmap-svg-container").append("svg")
+                    .attr("width", 8000) // Large initial width
+                    .attr("height", 8000); // Large initial height
+
+                g = svg.append("g");
+                
+                zoomBehavior = d3.zoom().scaleExtent([0.5, 2])
+                    .on("zoom", (event) => {
+                        g.attr("transform", event.transform);
+                    });
+                
+                svg.call(zoomBehavior);
+            }
+            
+            const treeLayout = d3.tree().nodeSize([120, 300]);
+            treeLayout(hierarchy);
+            
+            // Recenter view on initial load or full reset
+            if (source === root || !source.parent) {
+                const initialTransform = d3.zoomIdentity.translate(300, 4000);
+                svg.call(zoomBehavior.transform, initialTransform);
+            }
+            
+            const nodes = hierarchy.descendants();
+            const links = hierarchy.links();
+
+            nodes.forEach(d => { d.y = d.depth * 380; });
+
+            const node = g.selectAll('g.node')
+                .data(nodes, d => d.data.id || (d.data.id = ++i));
+            
+            const tooltip = d3.select("#tooltip");
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", `translate(${source.y0},${source.x0})`)
+                .style("opacity", 1)
+                .on('click', handleNodeClick)
+                .on('mouseover.tooltip', (event, d) => {
+                    let tooltipHtml = '';
+                    const nodeType = d.data.type;
+                    const nodeLabel = d.data.label;
+
+                    if (nodeType === 'profession') {
+                        const professionName = d.data.name.startsWith("Dosen") ? "Dosen" : d.data.name;
+                        const professionData = careerDB.professions[professionName];
+                        if (!professionData) return;
+                        
+                        tooltipHtml = `<h3 class="text-base font-bold text-indigo-700 mb-1">${d.data.name}</h3>`;
+                        tooltipHtml += `<p class="text-xs text-slate-500 mb-2">${professionData.group}</p>`;
+                        tooltipHtml += `<p class="text-sm text-slate-700">${professionData.description}</p>`;
+
+                        if (professionData.pendidikan_lanjut) {
+                            tooltipHtml += `<h4 class="text-sm font-semibold text-slate-800 mt-3 mb-1">Pendidikan Lanjutan</h4>`;
+                            tooltipHtml += `<p class="text-sm text-slate-700">${professionData.pendidikan_lanjut}</p>`;
+                        }
+                        if (professionData.peluang) {
+                            const hasPemerintah = professionData.peluang.pemerintah && professionData.peluang.pemerintah.length > 0;
+                            const hasSwasta = professionData.peluang.swasta && professionData.peluang.swasta.length > 0;
+                            
+                            if (hasPemerintah || hasSwasta) tooltipHtml += `<h4 class="text-sm font-semibold text-slate-800 mt-3 mb-1">Peluang Karir</h4>`;
+                            if (hasPemerintah) {
+                                tooltipHtml += `<p class="font-semibold text-xs text-slate-600">Sektor Pemerintahan:</p><ul class="list-disc list-inside text-sm text-slate-700">`;
+                                professionData.peluang.pemerintah.forEach(item => tooltipHtml += `<li>${item}</li>`);
+                                tooltipHtml += `</ul>`;
+                            }
+                            if (hasSwasta) {
+                                tooltipHtml += `<p class="font-semibold text-xs text-slate-600 mt-2">Sektor Swasta:</p><ul class="list-disc list-inside text-sm text-slate-700">`;
+                                professionData.peluang.swasta.forEach(item => tooltipHtml += `<li>${item}</li>`);
+                                tooltipHtml += `</ul>`;
+                            }
+                        }
+                    } else if (nodeLabel && nodeLabel.includes('Rekomendasi Pendidikan')) {
+                        const majorData = careerDB.majorDetails[d.data.majorName];
+                        const facultyData = careerDB.facultyDetails[d.data.facultyName];
+                        
+                        if (!majorData && !facultyData) return;
+
+                        tooltipHtml = `<h3 class="text-base font-bold text-indigo-700 mb-2">${d.data.majorName}</h3>`;
+                        if(majorData) tooltipHtml += `<p class="text-sm text-slate-700">${majorData.description}</p>`;
+                        if(facultyData) tooltipHtml += `<p class="text-xs text-slate-500 mt-1">Bagian dari: ${d.data.facultyName}</p>`;
+                        
+                        const universities = majorData?.universities || facultyData?.universities;
+                        if (universities) {
+                            tooltipHtml += `<h4 class="text-sm font-semibold text-slate-800 mt-3 mb-1">Rekomendasi Universitas</h4>`;
+                            if (universities.negeri && universities.negeri.length > 0) {
+                                tooltipHtml += `<p class="font-semibold text-xs text-slate-600">Negeri:</p><ul class="list-disc list-inside text-sm text-slate-700">`;
+                                universities.negeri.forEach(item => tooltipHtml += `<li>${item}</li>`);
+                                tooltipHtml += `</ul>`;
+                            }
+                            if (universities.swasta && universities.swasta.length > 0) {
+                                tooltipHtml += `<p class="font-semibold text-xs text-slate-600 mt-2">Swasta:</p><ul class="list-disc list-inside text-sm text-slate-700">`;
+                                universities.swasta.forEach(item => tooltipHtml += `<li>${item}</li>`);
+                                tooltipHtml += `</ul>`;
+                            }
+                        }
+                        const info = majorData?.info || facultyData?.info;
+                        if (info) tooltipHtml += `<p class="text-xs text-slate-500 mt-3 italic">${info}</p>`;
+
+                    } else if (nodeLabel && nodeLabel.includes('Mata Pelajaran Kunci')) {
+                        const data = careerDB.subjectDetails[d.data.name];
+                        const professionContext = d.parent.data.name;
+                        if (!data) return;
+
+                        tooltipHtml = `<h3 class="text-base font-bold text-indigo-700 mb-2">${d.data.name}</h3>`;
+                        tooltipHtml += `<p class="text-sm text-slate-700">${data.description}</p>`;
+                        if (data.relevance && data.relevance[professionContext]) {
+                            tooltipHtml += `<h4 class="text-sm font-semibold text-slate-800 mt-3 mb-1">Relevansi untuk ${professionContext}</h4>`;
+                            tooltipHtml += `<p class="text-sm text-slate-700">${data.relevance[professionContext]}</p>`;
+                        }
+                    }
+
+                    if(tooltipHtml) {
+                        tooltip.html(tooltipHtml)
+                            .style('left', `${event.pageX + 15}px`)
+                            .style('top', `${event.pageY + 15}px`)
+                            .classed('hidden', false)
+                            .style('opacity', 1);
+                    }
+                })
+                .on('mousemove.tooltip', (event, d) => {
+                    tooltip.style('left', `${event.pageX + 15}px`)
+                           .style('top', `${event.pageY + 15}px`);
+                })
+                .on('mouseout.tooltip', (event, d) => {
+                    tooltip.style('opacity', 0)
+                           .classed('hidden', true);
+                });
+            
+            const regularNodes = nodeEnter.filter(d => d.data.type !== 'description');
+            
+            regularNodes.append('circle')
+                .attr('class', 'node-circle')
+                .attr('r', 6);
+
+            regularNodes.append('text')
+                .attr('class', 'node-label')
+                .attr('dy', '-0.8em')
+                .attr('x', d => d.depth === 0 ? -15 : 15)
+                .style('text-anchor', d => d.depth === 0 ? 'end' : 'start')
+                .text(d => d.data.label);
+
+            regularNodes.append('text')
+                .attr('class', 'node-text')
+                .attr('dy', '0.6em')
+                .attr('x', d => d.depth === 0 ? -15 : 15)
+                .style('text-anchor', d => d.depth === 0 ? 'end' : 'start')
+                .text(d => d.data.name)
+                .call(wrap, 300); // Fungsi untuk word wrap
+            
+            const nodeUpdate = node.merge(nodeEnter);
+            nodeUpdate.transition().duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`)
+                .style("opacity", 1);
+
+            nodeUpdate.select('circle.node-circle')
+                .attr('fill', d => d.children ? '#86efac' : '#e2e8f0') // Green if open, gray if closed/leaf
+                .attr('stroke', d => d.depth === 0 ? '#2563eb' : (d.data._children || d.children ? '#16a34a' : '#94a3b8'));
+
+            node.exit().transition().duration(duration)
+                .attr("transform", d => `translate(${source.y},${source.x})`)
+                .style("opacity", 1e-6)
+                .remove();
+            
+            const link = g.selectAll('path.link')
+                .data(links, d => d.target.id);
+
+            const linkEnter = link.enter().insert('path', "g")
+                .attr("class", "link")
+                .attr('d', d => {
+                    const o = {x: source.x0, y: source.y0};
+                    return d3.linkHorizontal()({source: o, target: o});
+                });
+
+            link.merge(linkEnter).transition().duration(duration)
+                .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+            link.exit().transition().duration(duration)
+                .attr('d', d => {
+                    const o = {x: source.x, y: source.y};
+                    return d3.linkHorizontal()({source: o, target: o});
+                })
+                .remove();
+            
+            root.eachAfter(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+        }
+        
+       function getCSSStyles(parentElement) {
+            let css = "";
+            for (const S of Array.from(document.styleSheets)) {
+                try {
+                    if(S.cssRules) {
+                        for(const R of Array.from(S.cssRules)) {
+                            if (R.selectorText && parentElement.querySelector(R.selectorText)) {
+                                css += R.cssText;
+                            }
+                        }
+                    }
+                } catch (e) {
+                     // Ignore cross-origin issues
+                }
+            }
+            return css;
+       }
+
+       async function downloadMindmap(event) {
+            const svgElem = document.querySelector("#mindmap-svg-container svg");
+            if(!svgElem) {
+                alert("Peta karir masih kosong. Silakan mulai eksplorasi terlebih dahulu.");
+                return;
+            }
+
+            const downloadButton = event.target;
+            const originalText = downloadButton.textContent;
+            downloadButton.textContent = 'Mempersiapkan unduhan...';
+            downloadButton.disabled = true;
+            
+            const clonedSvgNode = svgElem.cloneNode(true);
+            const style = document.createElement("style");
+            // By defining the font family directly, we avoid fetching external resources
+            // which would taint the canvas. This is a safe fallback.
+            style.textContent = `
+                .node-text { font-family: sans-serif; font-size: 14px; font-weight: 600; fill: #1e293b; }
+                .node-label { font-family: sans-serif; font-size: 11px; font-weight: 500; fill: #64748b; }
+                .description-content { font-family: sans-serif; }
+                .link { fill: none; stroke: #cbd5e1; stroke-width: 1.5px; }`;
+            clonedSvgNode.insertBefore(style, clonedSvgNode.firstChild);
+
+            const serializer = new XMLSerializer();
+            const gBounds = g.node().getBBox();
+            const width = Math.floor(gBounds.width + 400); // Increased padding
+            const height = Math.floor(gBounds.height + 200); // Increased padding
+
+            clonedSvgNode.setAttribute('width', width);
+            clonedSvgNode.setAttribute('height', height);
+            
+            const svgString = serializer.serializeToString(clonedSvgNode);
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous'; // Attempt to prevent canvas tainting
+            const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function () {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                URL.revokeObjectURL(url);
+                
+                try {
+                    const a = document.createElement('a');
+                    a.download = 'peta-karir.png';
+                    a.href = canvas.toDataURL('image/png');
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                } catch (e) {
+                    console.error("Canvas toDataURL error:", e);
+                    alert("Gagal mengunduh gambar karena kebijakan keamanan browser.");
+                }
+
+
+                downloadButton.textContent = originalText;
+                downloadButton.disabled = false;
+            };
+            
+            img.onerror = function(e) {
+                console.error("Image loading error:", e);
+                alert('Gagal memuat gambar peta karir. Coba lagi.');
+                downloadButton.textContent = originalText;
+                downloadButton.disabled = false;
+                URL.revokeObjectURL(url);
+            }
+
+            img.src = url;
+       }
+
+       function wrap(text, width) {
+            text.each(function () {
+                var text = d3.select(this),
+                    words = text.text().split(/\s+/).reverse(),
+                    word,
+                    line = [],
+                    lineNumber = 0,
+                    lineHeight = 1.1, // ems
+                    x = text.attr("x"),
+                    y = text.attr("dy"),
+                    dy = parseFloat(y),
+                    tspan = text.text(null)
+                                .append("tspan")
+                                .attr("x", x)
+                                .attr("y", y)
+                                .attr("dy", dy + "em");
+                while (word = words.pop()) {
+                    line.push(word);
+                    tspan.text(line.join(" "));
+                    if (tspan.node().getComputedTextLength() > width) {
+                        line.pop();
+                        tspan.text(line.join(" "));
+                        line = [word];
+                        tspan = text.append("tspan")
+                                    .attr("x", x)
+                                    .attr("y", y)
+                                    .attr("dy", ++lineNumber * lineHeight + dy + "em")
+                                    .text(word);
+                    }
+                }
+            });
+        }
+        
+        // --- Chatbot Logic ---
+        function initChatbot() {
+            const chatContainer = document.getElementById('chat-container');
+            const chatToggle = document.getElementById('chat-toggle');
+            const closeChat = document.getElementById('close-chat');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+            const chatMessages = document.getElementById('chat-messages');
+
+            chatToggle.addEventListener('click', () => {
+                chatContainer.classList.toggle('hidden');
+                if (!chatContainer.classList.contains('hidden')) {
+                     chatInput.focus();
+                }
+            });
+
+            closeChat.addEventListener('click', () => {
+                chatContainer.classList.add('hidden');
+            });
+
+            chatForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const userInput = chatInput.value.trim();
+                if (!userInput) return;
+
+                addMessage('user', userInput);
+                chatInput.value = '';
+                
+                showThinkingIndicator();
+
+                try {
+                    const botResponse = await callGeminiAPI(userInput);
+                    removeThinkingIndicator();
+                    addMessage('bot', botResponse);
+                } catch (error) {
+                    removeThinkingIndicator();
+                    addMessage('bot', 'Maaf, terjadi kesalahan saat menghubungi konselor. Silakan coba lagi nanti.');
+                    console.error("Error calling Gemini API:", error);
+                }
+            });
+
+            function addMessage(sender, text) {
+                const messageWrapper = document.createElement('div');
+                messageWrapper.className = `chat-message ${sender} flex`;
+                
+                const messageBubble = document.createElement('div');
+                messageBubble.className = 'chat-bubble p-3 rounded-lg';
+                
+                // Simple markdown to HTML for lists and bold
+                let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                formattedText = formattedText.replace(/^\* (.*$)/gm, '<ul class="list-disc list-inside"><li>$1</li></ul>');
+                formattedText = formattedText.replace(/<\/ul>\n<ul class="list-disc list-inside">/g, ''); // Fix multiple lists
+
+                messageBubble.innerHTML = formattedText;
+                
+                messageWrapper.appendChild(messageBubble);
+                chatMessages.appendChild(messageWrapper);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function showThinkingIndicator() {
+                const thinkingWrapper = document.createElement('div');
+                thinkingWrapper.id = 'thinking-indicator';
+                thinkingWrapper.className = 'chat-message bot flex';
+                thinkingWrapper.innerHTML = `
+                    <div class="thinking-bubble bg-slate-100">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                `;
+                chatMessages.appendChild(thinkingWrapper);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function removeThinkingIndicator() {
+                const indicator = document.getElementById('thinking-indicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+        }
+        
+        async function callGeminiAPI(userQuery) {
+            const systemPrompt = "Anda adalah seorang konselor karir AI yang ramah, informatif, dan suportif bernama Gemini. Tugas Anda adalah membantu pengguna, yang kemungkinan besar adalah siswa SMA atau mahasiswa, untuk memahami berbagai jalur karir berdasarkan data yang ada di peta karir. Berikan jawaban yang jelas, terstruktur, dan memotivasi. Gunakan Google Search jika diperlukan untuk memberikan informasi terkini tentang tren karir, gaji, atau detail pendidikan. Selalu gunakan Bahasa Indonesia yang baik dan benar.";
+            const apiKey = "" // API key is handled by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+            
+            let response;
+            try {
+                response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    return candidate.content.parts[0].text;
+                } else {
+                    return "Maaf, saya tidak dapat memproses permintaan Anda saat ini.";
+                }
+
+            } catch (error) {
+                console.error("API call failed:", error);
+                throw error;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
+
